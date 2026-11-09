@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F1F3F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121418" media="(prefers-color-scheme: dark)">
+<title>ルーレット</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F1F3F9;
+    --surface: #FFFFFF;
+    --field: #F1F3F9;
+    --ink: #1A1C24;
+    --sub: #6B7080;
+    --line: #E3E6EF;
+    --accent: #4C6EF5;
+    --accent-press: #3B5BDB;
+    --on-accent: #FFFFFF;
+    --danger: #E03131;
+    --scrim: rgba(18, 20, 24, .5);
+    --r-lg: 24px;
+    --r-md: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121418;
+      --surface: #1C1F26;
+      --field: #262A33;
+      --ink: #F1F3F9;
+      --sub: #9AA0B0;
+      --line: #2A2E38;
+      --accent: #748FFC;
+      --accent-press: #5C7CFA;
+      --on-accent: #0E1430;
+      --danger: #FF6B6B;
+      --scrim: rgba(0, 0, 0, .6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", "Meiryo", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 20px calc(120px + env(safe-area-inset-bottom));
+  }
+
+  /* ヘッダー */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+  }
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--sub);
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  .icon-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  /* 円盤 */
+  .stage {
+    background: var(--surface);
+    border-radius: 32px;
+    padding: 36px 20px 24px;
+  }
+  .wheel-area {
+    position: relative;
+    width: min(100%, 360px);
+    aspect-ratio: 1;
+    margin: 0 auto;
+  }
+  canvas#wheel {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .pointer {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    width: 28px;
+    height: 34px;
+    transform: translateX(-50%);
+    z-index: 2;
+  }
+  .pointer svg { width: 100%; height: 100%; display: block; }
+  .hub {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 38%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: var(--surface);
+    border: none;
+    padding: 8px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    z-index: 1;
+    transition: transform .12s;
+  }
+  .hub:active:not(:disabled) { transform: translate(-50%, -50%) scale(.96); }
+  .hub:disabled { cursor: default; }
+  .hub-text {
+    font-size: clamp(13px, 4.2vw, 17px);
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .hub-text.idle { color: var(--accent); font-weight: 900; }
+  .stage-note {
+    text-align: center;
+    color: var(--sub);
+    font-size: 14px;
+    margin: 20px 0 0;
+  }
+
+  /* セクション */
+  section.panel {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    margin-top: 16px;
+  }
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  h2 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 900;
+  }
+  .count { color: var(--sub); font-size: 14px; font-weight: 500; }
+
+  .add-row { display: flex; gap: 8px; }
+  input[type="text"], textarea {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+    padding: 13px 16px;
+    border: 2px solid transparent;
+    border-radius: var(--r-md);
+    background: var(--field);
+    outline: none;
+  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--accent); }
+  input::placeholder, textarea::placeholder { color: var(--sub); }
+  textarea { width: 100%; min-height: 120px; resize: vertical; display: block; }
+
+  .btn {
+    border: none;
+    border-radius: var(--r-md);
+    font-weight: 700;
+    transition: background-color .12s, transform .08s;
+  }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+    padding: 13px 20px;
+  }
+  .btn-primary:active:not(:disabled) { background: var(--accent-press); }
+  .btn-text {
+    background: none;
+    color: var(--sub);
+    padding: 8px 4px;
+    font-size: 14px;
+  }
+  .btn-text.armed { color: var(--danger); }
+
+  details { margin-top: 12px; }
+  summary {
+    list-style: none;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 14px;
+    padding: 6px 0;
+    width: fit-content;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "＋"; margin-left: 6px; }
+  details[open] summary::after { content: "－"; }
+  .bulk-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    border: none;
+    border-radius: 999px;
+    background: var(--field);
+    color: var(--ink);
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .chip::before { content: "＋ "; color: var(--sub); }
+
+  ul.items { list-style: none; margin: 16px 0 0; padding: 0; }
+  ul.items li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    border-top: 1px solid var(--line);
+  }
+  .swatch { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
+  .item-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+  .del {
+    border: none;
+    background: none;
+    color: var(--sub);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .del svg { width: 18px; height: 18px; }
+  .del:active { background: var(--field); }
+  .empty { color: var(--sub); font-size: 14px; margin: 16px 0 0; }
+  .list-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+
+  ol.history { list-style: none; margin: 0; padding: 0; }
+  ol.history li {
+    display: grid;
+    grid-template-columns: 3.5em 1fr auto;
+    gap: 8px;
+    align-items: baseline;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+  }
+  ol.history li:first-child { border-top: none; padding-top: 0; }
+  .h-no { color: var(--sub); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .h-name { font-weight: 700; overflow-wrap: anywhere; }
+  .h-time { color: var(--sub); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  footer { text-align: center; color: var(--sub); font-size: 12px; margin-top: 24px; }
+
+  /* 下に固定するスタートボタン */
+  .dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+    z-index: 10;
+  }
+  .start {
+    display: block;
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    height: 60px;
+    border-radius: 999px;
+    font-size: 19px;
+    font-weight: 900;
+    letter-spacing: .08em;
+  }
+
+  /* 結果 */
+  .result {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    display: none;
+    place-items: center;
+    padding: 24px;
+    z-index: 20;
+  }
+  .result.show { display: grid; }
+  .result-card {
+    width: min(100%, 360px);
+    background: var(--surface);
+    border-radius: 32px;
+    padding: 32px 24px 24px;
+    text-align: center;
+    animation: rise .35s cubic-bezier(.2, .9, .3, 1.2);
+  }
+  @keyframes rise {
+    from { transform: translateY(24px) scale(.94); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  .result-swatch {
+    width: 56px;
+    height: 8px;
+    border-radius: 999px;
+    margin: 0 auto 20px;
+  }
+  .result-label { margin: 0; color: var(--sub); font-size: 14px; font-weight: 700; }
+  .result-name {
+    margin: 8px 0 28px;
+    font-size: clamp(32px, 10vw, 44px);
+    font-weight: 900;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .result-card .btn { width: 100%; height: 54px; border-radius: 999px; font-size: 17px; }
+
+  canvas#confetti {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 30;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .result-card { animation: none; }
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--sub);
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    margin-bottom: 12px;
+    padding: 4px 0;
+  }
+  .back svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>アプリ一覧</a>
+  <header>
+    <h1>ルーレット</h1>
+    <button class="icon-btn" id="soundBtn" type="button" aria-pressed="false" aria-label="効果音">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/>
+        <path id="soundWaves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" style="display:none"/>
+        <path id="soundMute" d="M17 9l5 6M22 9l-5 6"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="stage">
+    <div class="wheel-area">
+      <div class="pointer" aria-hidden="true">
+        <svg viewBox="0 0 28 34"><path d="M14 34 L2 12 A13 13 0 1 1 26 12 Z" fill="var(--ink)"/><circle cx="14" cy="12" r="5" fill="var(--surface)"/></svg>
+      </div>
+      <canvas id="wheel" aria-hidden="true"></canvas>
+      <button class="hub" id="hub" type="button" aria-label="ルーレットを回す">
+        <span class="hub-text idle" id="hubText">START</span>
+      </button>
+    </div>
+    <p class="stage-note" id="stageNote">真ん中かスタートを押すと回ります</p>
+  </div>
+
+  <section class="panel" aria-labelledby="itemsTitle">
+    <div class="panel-head">
+      <h2 id="itemsTitle">項目</h2>
+      <span class="count" id="count">0件</span>
+    </div>
+    <div class="add-row">
+      <input type="text" id="itemInput" placeholder="項目を入力" maxlength="40" enterkeyhint="done" autocomplete="off" aria-label="追加する項目">
+      <button class="btn btn-primary" type="button" id="addBtn">追加</button>
+    </div>
+
+    <details>
+      <summary>まとめて貼り付ける</summary>
+      <textarea id="bulkInput" placeholder="1行に1つずつ入力"></textarea>
+      <div class="bulk-actions">
+        <button class="btn btn-primary" type="button" id="bulkBtn">まとめて追加</button>
+      </div>
+    </details>
+
+    <div class="chips" aria-label="サンプルを追加">
+      <button class="chip" type="button" data-sample="lunch">今日のランチ</button>
+      <button class="chip" type="button" data-sample="cleaning">掃除当番</button>
+      <button class="chip" type="button" data-sample="theme">今日のお題</button>
+    </div>
+
+    <ul class="items" id="itemList"></ul>
+    <p class="empty" id="emptyList">項目を追加すると、円盤ができます</p>
+    <div class="list-foot">
+      <button class="btn btn-text" type="button" id="clearBtn">全部クリア</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="historyTitle">
+    <div class="panel-head">
+      <h2 id="historyTitle">履歴</h2>
+      <button class="btn btn-text" type="button" id="clearHistoryBtn">履歴を消す</button>
+    </div>
+    <ol class="history" id="historyList"></ol>
+    <p class="empty" id="emptyHistory">回した結果がここに残ります</p>
+  </section>
+
+  <footer>項目と履歴は、この端末のブラウザにだけ保存されます</footer>
+</div>
+
+<div class="dock">
+  <button class="btn btn-primary start" id="startBtn" type="button">スタート</button>
+</div>
+
+<div class="result" id="result" role="dialog" aria-modal="true" aria-labelledby="resultName">
+  <div class="result-card">
+    <div class="result-swatch" id="resultSwatch"></div>
+    <p class="result-label">結果</p>
+    <p class="result-name" id="resultName"></p>
+    <button class="btn btn-primary" type="button" id="closeResult">閉じる</button>
+  </div>
+</div>
+
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+(() => {
+  // ===== 設定 =====
+  // 円盤の色（背景色と文字色の組み合わせ）
+  const COLORS = [
+    { bg: "#4C6EF5", fg: "#FFFFFF" },
+    { bg: "#FF8787", fg: "#1A1C24" },
+    { bg: "#20C997", fg: "#1A1C24" },
+    { bg: "#FCC419", fg: "#1A1C24" },
+    { bg: "#9775FA", fg: "#FFFFFF" },
+    { bg: "#74C0FC", fg: "#1A1C24" }
+  ];
+  const SPIN_MS = 4000;
+  const STORAGE_KEY = "kurukuru-roulette-v1";
+  const SAMPLES = {
+    lunch: ["カレー", "ラーメン", "パスタ", "おにぎり", "うどん", "ハンバーガー"],
+    cleaning: ["Aさん", "Bさん", "Cさん", "Dさん", "Eさん"],
+    theme: ["好きな食べ物", "動物", "乗り物", "季節の風景", "自分の顔", "未来の街"]
+  };
+  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ===== 状態 =====
+  let state = { items: [], history: [], sound: false };
+  let rotation = 0;   // 円盤の角度（ラジアン）
+  let spinning = false;
+
+  // ===== 要素 =====
+  const $ = id => document.getElementById(id);
+  const wheel = $("wheel");
+  const ctx = wheel.getContext("2d");
+  const startBtn = $("startBtn");
+  const hub = $("hub");
+  const hubText = $("hubText");
+
+  // ===== 保存・読み込み =====
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: state.items, history: state.history })); } catch (e) {}
+  }
+  function load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (!data) return;
+      if (Array.isArray(data.items)) state.items = data.items.filter(i => i && typeof i.name === "string").map(i => ({ name: i.name }));
+      if (Array.isArray(data.history)) state.history = data.history.slice(0, 50);
+    } catch (e) {}
+  }
+
+  // ===== 項目 =====
+  function colorFor(index, total) {
+    // 最後の色が最初の色と隣り合わないようにする
+    if (total > 1 && index === total - 1 && total % COLORS.length === 1) return COLORS[2];
+    return COLORS[index % COLORS.length];
+  }
+  function addItems(names) {
+    const clean = names.map(n => String(n).trim()).filter(Boolean).map(n => n.slice(0, 40));
+    if (!clean.length) return;
+    clean.forEach(name => state.items.push({ name }));
+    save();
+    render();
+  }
+
+  // ===== 円盤の描画 =====
+  const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const fontFamily = '"Zen Kaku Gothic New", "Hiragino Sans", sans-serif';
+
+  function sizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const size = wheel.clientWidth;
+    wheel.width = Math.round(size * dpr);
+    wheel.height = Math.round(size * dpr);
+    drawWheel();
+  }
+
+  function drawWheel() {
+    const list = state.items;
+    const w = wheel.width;
+    const r = w / 2;
+    ctx.clearRect(0, 0, w, w);
+
+    if (!list.length) {
+      ctx.fillStyle = cssVar("--field");
+      ctx.beginPath();
+      ctx.arc(r, r, r, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    const seg = (Math.PI * 2) / list.length;
+    const fontPx = Math.max(12, Math.min(20, 200 / Math.max(list.length, 6))) * (w / 360);
+
+    list.forEach((item, i) => {
+      const c = colorFor(i, list.length);
+      const a0 = rotation + i * seg;
+      ctx.beginPath();
+      ctx.moveTo(r, r);
+      ctx.arc(r, r, r, a0, a0 + seg);
+      ctx.closePath();
+      ctx.fillStyle = c.bg;
+      ctx.fill();
+      if (list.length > 1) {
+        ctx.strokeStyle = cssVar("--surface");
+        ctx.lineWidth = Math.max(3, w / 120);
+        ctx.stroke();
+      }
+
+      // 項目名
+      ctx.save();
+      ctx.translate(r, r);
+      ctx.rotate(a0 + seg / 2);
+      ctx.fillStyle = c.fg;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const maxW = r * 0.48;
+      // 長い名前は、まず文字を少し小さくして収める（最小で75%）
+      ctx.font = `700 ${fontPx}px ${fontFamily}`;
+      const fullW = ctx.measureText(item.name).width;
+      const scale = Math.max(0.75, Math.min(1, maxW / fullW));
+      ctx.font = `700 ${fontPx * scale}px ${fontFamily}`;
+      let label = item.name;
+      if (ctx.measureText(label).width > maxW) {
+        while (ctx.measureText(label + "…").width > maxW && label.length > 1) label = label.slice(0, -1);
+        label += "…";
+      }
+      ctx.fillText(label, r * 0.88, 0);
+      ctx.restore();
+    });
+  }
+
+  // ===== 画面の更新 =====
+  const icon = {
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+  };
+
+  function render() {
+    // 項目
+    const ul = $("itemList");
+    ul.innerHTML = "";
+    state.items.forEach((item, idx) => {
+      const li = document.createElement("li");
+      const sw = document.createElement("span");
+      sw.className = "swatch";
+      sw.style.background = colorFor(idx, state.items.length).bg;
+      const name = document.createElement("span");
+      name.className = "item-name";
+      name.textContent = item.name;
+      const del = document.createElement("button");
+      del.className = "del";
+      del.type = "button";
+      del.innerHTML = icon.x;
+      del.setAttribute("aria-label", item.name + "を削除");
+      del.disabled = spinning;
+      del.addEventListener("click", () => {
+        if (spinning) return;
+        state.items.splice(idx, 1);
+        save();
+        render();
+      });
+      li.append(sw, name, del);
+      ul.appendChild(li);
+    });
+    $("emptyList").style.display = state.items.length ? "none" : "block";
+    $("count").textContent = `${state.items.length}件`;
+
+    // 履歴
+    const ol = $("historyList");
+    ol.innerHTML = "";
+    state.history.forEach((h, i) => {
+      const li = document.createElement("li");
+      const no = document.createElement("span");
+      no.className = "h-no";
+      no.textContent = `${state.history.length - i}回目`;
+      const nm = document.createElement("span");
+      nm.className = "h-name";
+      nm.textContent = h.name;
+      const tm = document.createElement("span");
+      tm.className = "h-time";
+      tm.textContent = h.time;
+      li.append(no, nm, tm);
+      ol.appendChild(li);
+    });
+    $("emptyHistory").style.display = state.history.length ? "none" : "block";
+
+    // ボタン
+    const canSpin = !spinning && state.items.length > 0;
+    startBtn.disabled = !canSpin;
+    hub.disabled = !canSpin;
+    startBtn.textContent = spinning ? "回転中…" : "スタート";
+    document.querySelectorAll("#clearBtn, #clearHistoryBtn, [data-sample], #bulkBtn, #addBtn")
+      .forEach(b => b.disabled = spinning);
+    if (!spinning) {
+      hubText.textContent = state.items.length ? "START" : "項目を追加";
+      hubText.classList.add("idle");
+    }
+    $("stageNote").textContent = state.items.length
+      ? "真ん中かスタートを押すと回ります"
+      : "下で項目を追加してください";
+
+    drawWheel();
+  }
+
+  // ===== 効果音 =====
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function tone(freq, start, dur, type = "sine", vol = 0.08) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime + start;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  const playTick = () => state.sound && tone(1600, 0, 0.025, "square", 0.04);
+  function playWin() {
+    if (!state.sound) return;
+    [659, 784, 988, 1319].forEach((f, i) => tone(f, i * 0.09, 0.3, "triangle", 0.12));
+  }
+
+  // ===== 回転 =====
+  const TAU = Math.PI * 2;
+  const mod = (a, m) => ((a % m) + m) % m;
+  const easeOut = t => 1 - Math.pow(1 - t, 4);
+
+  function randomIndex(n) {
+    if (window.crypto && crypto.getRandomValues) {
+      const buf = new Uint32Array(1);
+      const limit = Math.floor(0x100000000 / n) * n; // 偏りをなくす
+      do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+      return buf[0] % n;
+    }
+    return Math.floor(Math.random() * n);
+  }
+  function indexAtPointer(n) {
+    return Math.floor(mod(-Math.PI / 2 - rotation, TAU) / (TAU / n));
+  }
+
+  function spin() {
+    const list = state.items.slice();
+    if (spinning || !list.length) return;
+    if (state.sound) ensureAudio();
+
+    const n = list.length;
+    const seg = TAU / n;
+    const target = randomIndex(n);                    // どの項目も同じ確率
+    const offset = 0.2 + Math.random() * 0.6;         // 区切り線ぎりぎりで止まらないように
+    const base = -Math.PI / 2 - (target + offset) * seg;
+    const startRot = rotation;
+    const delta = mod(base - startRot, TAU) + TAU * 6;
+    const t0 = performance.now();
+    let lastIdx = -1;
+
+    spinning = true;
+    render();
+    hubText.classList.remove("idle");
+
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / SPIN_MS);
+      rotation = startRot + delta * easeOut(t);
+      drawWheel();
+      const idx = indexAtPointer(n);
+      if (idx !== lastIdx) {
+        hubText.textContent = list[idx].name;   // 矢印が指している項目を真ん中に表示
+        if (lastIdx !== -1) playTick();
+        lastIdx = idx;
+      }
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        rotation = mod(rotation, TAU);
+        finish(list[target], colorFor(target, n));
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finish(item, color) {
+    spinning = false;
+    const d = new Date();
+    const time = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    state.history.unshift({ name: item.name, time });
+    state.history = state.history.slice(0, 50);
+    save();
+    render();
+    hubText.textContent = item.name;
+    hubText.classList.remove("idle");
+
+    $("resultName").textContent = item.name;
+    $("resultSwatch").style.background = color.bg;
+    $("result").classList.add("show");
+    $("closeResult").focus();
+    playWin();
+    if (!reduceMotion) confetti();
+  }
+
+  // ===== 紙吹雪 =====
+  const cv = $("confetti");
+  const cctx = cv.getContext("2d");
+  let pieces = [];
+  let confettiRunning = false;
+  function confetti() {
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = innerWidth * dpr;
+    cv.height = innerHeight * dpr;
+    for (let i = 0; i < 140; i++) {
+      const round = i % 3 === 0;
+      pieces.push({
+        x: Math.random() * cv.width,
+        y: -Math.random() * cv.height * 0.4,
+        s: (6 + Math.random() * 7) * dpr,
+        round,
+        vy: (2.2 + Math.random() * 2.8) * dpr,
+        vx: (Math.random() - 0.5) * 1.6 * dpr,
+        rot: Math.random() * TAU,
+        vr: (Math.random() - 0.5) * 0.25,
+        color: COLORS[i % COLORS.length].bg,
+        life: 0
+      });
+    }
+    if (!confettiRunning) { confettiRunning = true; requestAnimationFrame(stepConfetti); }
+  }
+  function stepConfetti() {
+    cctx.clearRect(0, 0, cv.width, cv.height);
+    pieces.forEach(p => {
+      p.x += p.vx + Math.sin(p.life / 14) * 0.7;
+      p.y += p.vy;
+      p.rot += p.vr;
+      p.life++;
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+      if (p.round) {
+        cctx.beginPath();
+        cctx.arc(0, 0, p.s / 2, 0, TAU);
+        cctx.fill();
+      } else {
+        cctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+      }
+      cctx.restore();
+    });
+    pieces = pieces.filter(p => p.y < cv.height + 40 && p.life < 400);
+    if (pieces.length) requestAnimationFrame(stepConfetti);
+    else { confettiRunning = false; cctx.clearRect(0, 0, cv.width, cv.height); }
+  }
+
+  // ===== 操作 =====
+  startBtn.addEventListener("click", spin);
+  hub.addEventListener("click", spin);
+
+  function addOne() {
+    const input = $("itemInput");
+    addItems([input.value]);
+    input.value = "";
+    input.focus();
+  }
+  $("addBtn").addEventListener("click", addOne);
+  $("itemInput").addEventListener("keydown", e => {
+    // 日本語の変換確定のEnterでは追加しない
+    if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      addOne();
+    }
+  });
+
+  $("bulkBtn").addEventListener("click", () => {
+    const ta = $("bulkInput");
+    addItems(ta.value.split(/\r?\n/));
+    ta.value = "";
+  });
+
+  document.querySelectorAll("[data-sample]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (spinning) return;
+      addItems(SAMPLES[btn.dataset.sample]);   // 今の項目の後ろに追加
+    });
+  });
+
+  // 消す操作は「もう一度押すと確定」
+  function tapTwice(btn, message, action) {
+    if (btn.dataset.armed === "1") {
+      clearTimeout(btn._timer);
+      btn.dataset.armed = "";
+      btn.classList.remove("armed");
+      btn.textContent = btn.dataset.label;
+      action();
+      return;
+    }
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.dataset.armed = "1";
+    btn.classList.add("armed");
+    btn.textContent = message;
+    btn._timer = setTimeout(() => {
+      btn.dataset.armed = "";
+      btn.classList.remove("armed");
+      btn.textContent = btn.dataset.label;
+    }, 3000);
+  }
+  $("clearBtn").addEventListener("click", e => {
+    if (spinning || !state.items.length) return;
+    tapTwice(e.currentTarget, "もう一度押すと全部消えます", () => {
+      state.items = [];
+      save();
+      render();
+    });
+  });
+  $("clearHistoryBtn").addEventListener("click", e => {
+    if (spinning || !state.history.length) return;
+    tapTwice(e.currentTarget, "もう一度押すと消えます", () => {
+      state.history = [];
+      save();
+      render();
+    });
+  });
+
+  $("soundBtn").addEventListener("click", () => {
+    state.sound = !state.sound;
+    const b = $("soundBtn");
+    b.setAttribute("aria-pressed", String(state.sound));
+    $("soundWaves").style.display = state.sound ? "" : "none";
+    $("soundMute").style.display = state.sound ? "none" : "";
+    if (state.sound) { ensureAudio(); tone(880, 0, 0.08, "triangle", 0.1); }
+  });
+
+  function closeResult() {
+    if (!$("result").classList.contains("show")) return;
+    $("result").classList.remove("show");
+    startBtn.focus();
+  }
+  $("closeResult").addEventListener("click", closeResult);
+  $("result").addEventListener("click", e => { if (e.target.id === "result") closeResult(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeResult(); });
+
+  window.addEventListener("resize", sizeCanvas);
+  if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", drawWheel);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawWheel);
+
+  // ===== 起動 =====
+  load();
+  render();
+  sizeCanvas();
+})();
+</script>
+</body>
+</html>
